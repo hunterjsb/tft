@@ -127,6 +127,49 @@ go test -bench=. ./src/riot
 
 Different game modes and data types use different regional endpoints as specified by Riot's API documentation.
 
+## CI/CD with GitHub Actions
+
+The project includes a GitHub Actions workflow that automatically runs tests on every push to `master` or `main` branches.
+
+### Workflow Features
+
+- **Automated Testing**: Runs all integration tests using your `RIOT_API_KEY` secret
+- **Build Validation**: Ensures code compiles successfully
+- **Go 1.23 Support**: Tests against the latest Go version
+- **Cross-platform**: Runs on Ubuntu latest
+
+### Setting up CI/CD
+
+1. **Set the API Key Secret**:
+   ```bash
+   gh secret set RIOT_API_KEY --body "your-api-key-here"
+   ```
+
+2. **Workflow triggers automatically** on:
+   - Push to `master` or `main` branches
+   - Pull requests targeting `master` or `main`
+
+3. **View workflow results**:
+   ```bash
+   gh run list
+   gh run view [run-id] --log
+   ```
+
+### Local Testing
+
+You can run the same checks locally using the test script:
+
+```bash
+# Run all checks (lint, build, test)
+./test.sh
+
+# Run only linting
+./test.sh --lint-only
+
+# Run with verbose output
+./test.sh --verbose
+```
+
 ## Rate Limits
 
 The client includes a 10-second timeout but does not implement rate limiting. Be mindful of Riot's rate limits when making requests in production applications.
