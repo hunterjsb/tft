@@ -156,7 +156,9 @@ func TestLoadDefault_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
-	defer os.Chdir(originalWd)
+	defer func() {
+		_ = os.Chdir(originalWd)
+	}()
 
 	// Create temporary directory and change to it
 	tmpDir, err := os.MkdirTemp("", "dotenv_test")
@@ -195,7 +197,9 @@ func TestLoadDefault_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
-	defer os.Chdir(originalWd)
+	defer func() {
+		_ = os.Chdir(originalWd)
+	}()
 
 	// Create temporary directory with no .env file
 	tmpDir, err := os.MkdirTemp("", "dotenv_test")

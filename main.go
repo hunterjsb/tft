@@ -17,4 +17,6 @@ func main() {
 	}
 
 	fmt.Printf("Found %s#%s (Level %d)\n", account.GameName, account.TagLine, summoner.SummonerLevel)
+
+	a, b := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 10, nil, nil)
 }
