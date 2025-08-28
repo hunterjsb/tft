@@ -1,4 +1,5 @@
 # TFT
+[![Go](https://github.com/hunterjsb/tft/actions/workflows/go.yml/badge.svg)](https://github.com/hunterjsb/tft/actions/workflows/go.yml)
 
 Simple Riot Games API client for Teamfight Tactics data.
 
