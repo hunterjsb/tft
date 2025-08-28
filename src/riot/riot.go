@@ -17,27 +17,47 @@ func init() {
 	http.DefaultClient.Timeout = time.Second * 10
 }
 
-func GetAccountByRiotId(gameName, tagLine string) (*Account, error) {
-	url := fmt.Sprintf("%s/riot/account/v1/accounts/by-riot-id/%s/%s?api_key=%s",
-		RIOT_AMERICAS_URL, gameName, tagLine, getAPIKey())
+// buildURL constructs a Riot API URL with the given base URL and endpoint
+func buildURL(baseURL, endpoint string) string {
+	return fmt.Sprintf("%s%s?api_key=%s", baseURL, endpoint, getAPIKey())
+}
 
+// buildAmericasURL constructs a URL for the Americas region
+func buildAmericasURL(endpoint string) string {
+	return buildURL(RIOT_AMERICAS_URL, endpoint)
+}
+
+// buildNA1URL constructs a URL for the NA1 region
+func buildNA1URL(endpoint string) string {
+	return buildURL(RIOT_NA1_URL, endpoint)
+}
+
+// makeAPIRequest is a generic function that handles HTTP boilerplate for Riot API requests
+func makeAPIRequest(url string, result interface{}) error {
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+		return fmt.Errorf("API request failed with status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	return json.Unmarshal(body, result)
+}
+
+func GetAccountByRiotId(gameName, tagLine string) (*Account, error) {
+	endpoint := fmt.Sprintf("/riot/account/v1/accounts/by-riot-id/%s/%s", gameName, tagLine)
+	url := buildAmericasURL(endpoint)
+
 	var account Account
-	if err := json.Unmarshal(body, &account); err != nil {
+	if err := makeAPIRequest(url, &account); err != nil {
 		return nil, err
 	}
 
@@ -45,26 +65,11 @@ func GetAccountByRiotId(gameName, tagLine string) (*Account, error) {
 }
 
 func GetSummonerByPUUID(puuid string) (*Summoner, error) {
-	url := fmt.Sprintf("%s/lol/summoner/v4/summoners/by-puuid/%s?api_key=%s",
-		RIOT_NA1_URL, puuid, getAPIKey())
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+	endpoint := fmt.Sprintf("/lol/summoner/v4/summoners/by-puuid/%s", puuid)
+	url := buildNA1URL(endpoint)
 
 	var summoner Summoner
-	if err := json.Unmarshal(body, &summoner); err != nil {
+	if err := makeAPIRequest(url, &summoner); err != nil {
 		return nil, err
 	}
 
