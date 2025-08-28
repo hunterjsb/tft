@@ -2,10 +2,10 @@ name: Test & Lint
 
 on:
   push:
-    branches: ["**"]
-    branches-ignore: ["skip-ci/**"]
+    branches: ["*"]
+    branches-ignore: ["skip-ci/*"]
   pull_request:
-    branches: ["main", "develop"]
+    branches: ["main", "develop", "master"]
 
 env:
   GO_VERSION: "1.21"
@@ -58,5 +58,4 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: v1.55
-          working-directory: .
           args: --timeout=5m ./src/riot/...
