@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	dotenv.LoadDefault()
+	_ = dotenv.LoadDefault()
 
 	summoner, account, err := riot.GetSummonerByRiotId("mubs", "NA1")
 	if err != nil {
