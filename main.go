@@ -18,5 +18,11 @@ func main() {
 
 	fmt.Printf("Found %s#%s (Level %d)\n", account.GameName, account.TagLine, summoner.SummonerLevel)
 
-	a, b := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 10, nil, nil)
+	matchIds, err := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 20, nil, nil)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Match IDs: %v\n", matchIds)
 }
