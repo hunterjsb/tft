@@ -78,12 +78,40 @@ go build -o tft-app .
 The bot supports the following slash commands:
 
 - `/chat <prompt>` - Chat with the AI bot using OpenAI
+- `/tftrecent <gamename> <tagline> [count]` - Get recent TFT games for a player
 
 ### Example Usage
 
+**Chat Command:**
 1. In Discord, type `/chat Hello, how are you?`
 2. The bot will respond using OpenAI's API
 3. Long responses are automatically split into multiple messages if they exceed Discord's 2000 character limit
+
+**TFT Recent Games Command:**
+1. Type `/tftrecent gamename:mubs tagline:NA1 count:5`
+2. The bot will show the last 5 TFT games for that player with:
+   - Placement and performance emojis
+   - Game duration and level reached
+   - Damage dealt and gold remaining
+   - Active traits and synergies
+   - Match timestamp
+
+Example output:
+```
+🎮 **Recent TFT Games for mubs#NA1**
+
+🥇 Game 1 • Set 12
+└ 🥇 #1 • Level 9 • 35m 42s
+└ 🏆 18,432 damage • 💰 12 gold left
+└ 🎯 ⭐ Invoker 3 • Scholars 2 • Portal 2 • Frost 3
+└ Jan 15, 2:30 PM
+
+🥈 Game 2 • Set 12
+└ 🥈 #2 • Level 8 • 32m 18s
+└ 🏆 15,234 damage • 💰 8 gold left
+└ 🎯 Warriors 4 • Conqueror 2 • Multistriker 2
+└ Jan 15, 1:45 PM
+```
 
 ## Configuration Options
 
@@ -97,11 +125,24 @@ The bot supports the following slash commands:
 | `CHANNEL_ID` | Specific channel ID to respond in | - | No |
 | `MAX_TOKENS` | Maximum tokens for OpenAI responses | 150 | No |
 | `TEMPERATURE` | OpenAI temperature (0.0-1.0) | 0.7 | No |
+| `RIOT_API_KEY` | Your Riot Games API key (for TFT commands) | - | No* |
 | `MODE` | Application mode (`discord` or `tft`) | tft | No |
+
+*Required only for TFT-related commands
 
 ### Guild ID Configuration
 
 Setting `GUILD_ID` is recommended for development as it makes slash command registration faster. For production bots that should work across multiple servers, leave this empty.
+
+### Riot API Key Setup
+
+To use TFT commands, you'll need a Riot Games API key:
+
+1. Go to [developer.riotgames.com](https://developer.riotgames.com)
+2. Sign in with your Riot account
+3. Create a personal API key (valid for 24 hours)
+4. For production use, apply for a production API key
+5. Set it as `RIOT_API_KEY` in your `.env` file
 
 ## Architecture
 
@@ -116,9 +157,10 @@ The Discord bot consists of several components:
 
 1. **Slash Commands**: Uses Discord's modern slash command interface
 2. **OpenAI Integration**: Responds to user prompts using OpenAI's API
-3. **Message Chunking**: Automatically splits long responses into multiple messages
-4. **Graceful Shutdown**: Properly cleans up commands and connections when stopped
-5. **Configurable**: All settings can be adjusted via environment variables
+3. **TFT Integration**: Fetches and displays recent TFT game data with rich formatting
+4. **Message Chunking**: Automatically splits long responses into multiple messages
+5. **Graceful Shutdown**: Properly cleans up commands and connections when stopped
+6. **Configurable**: All settings can be adjusted via environment variables
 
 ## Troubleshooting
 
@@ -133,7 +175,12 @@ The Discord bot consists of several components:
    - Check that your OpenAI API key is valid and has credits
    - Ensure `MAX_TOKENS` is within your API limits
 
-3. **Permission errors**
+3. **TFT command errors**
+   - Ensure `RIOT_API_KEY` is set and valid
+   - Check that the player name and tagline are correct
+   - Verify the player has recent TFT games
+
+4. **Permission errors**
    - Make sure the bot has "Send Messages" permission in the channel
    - Check that the bot role is high enough in the server hierarchy
 
