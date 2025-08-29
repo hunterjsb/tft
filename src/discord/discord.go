@@ -33,13 +33,31 @@ var commands = []*discordgo.ApplicationCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "tagline",
-				Description: "Player's tagline (e.g., 'NA1')",
-				Required:    true,
+				Description: "Player's tagline (default: NA1)",
+				Required:    false,
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionInteger,
 				Name:        "count",
 				Description: "Number of games to show (1-10, default: 5)",
+				Required:    false,
+			},
+		},
+	},
+	{
+		Name:        "lastgame",
+		Description: "Get player's last TFT game with detailed info",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "gamename",
+				Description: "Player's Riot ID (e.g., 'mubs')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "tagline",
+				Description: "Player's tagline (default: NA1)",
 				Required:    false,
 			},
 		},
@@ -66,6 +84,7 @@ func NewDiscordBot(config *Config) (*DiscordBot, error) {
 	// Set up command handlers
 	bot.CommandHandlers["chat"] = bot.handleChatCommand
 	bot.CommandHandlers["tftrecent"] = bot.handleTFTRecentCommand
+	bot.CommandHandlers["lastgame"] = bot.handleLastGameCommand
 
 	return bot, nil
 }

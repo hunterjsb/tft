@@ -24,13 +24,19 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 
 	// Parse command options
 	gameName := options[0].StringValue()
-	tagLine := options[1].StringValue()
+	tagLine := "NA1" // default
+	if len(options) > 1 && options[1].StringValue() != "" {
+		tagLine = options[1].StringValue()
+	}
 
 	count := 5 // default
-	if len(options) > 2 {
-		count = int(options[2].IntValue())
-		if count < 1 || count > 10 {
-			count = 5
+	for i, option := range options {
+		if option.Name == "count" && i >= 1 {
+			count = int(option.IntValue())
+			if count < 1 || count > 10 {
+				count = 5
+			}
+			break
 		}
 	}
 
@@ -291,4 +297,208 @@ func (b *DiscordBot) cleanChampionName(championID string) string {
 		}
 	}
 	return championID
+}
+
+// handleLastGameCommand handles the /lastgame command
+func (b *DiscordBot) handleLastGameCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Acknowledge the interaction immediately
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	}); err != nil {
+		fmt.Printf("Error acknowledging interaction: %v\n", err)
+		return
+	}
+
+	options := i.ApplicationCommandData().Options
+
+	// Parse command options
+	gameName := options[0].StringValue()
+	tagLine := "NA1" // default
+	if len(options) > 1 && options[1].StringValue() != "" {
+		tagLine = options[1].StringValue()
+	}
+
+	// Get account and summoner information
+	account, err := riot.GetAccountByRiotId(gameName, tagLine)
+	if err != nil {
+		b.sendError(s, i, "Player Not Found", fmt.Sprintf("Could not find player `%s#%s`", gameName, tagLine))
+		return
+	}
+
+	summoner, err := riot.GetSummonerByPUUID(account.PUUID)
+	if err != nil {
+		b.sendError(s, i, "API Error", "Error fetching summoner data")
+		return
+	}
+
+	// Get most recent TFT match
+	matchIDs, err := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 1, nil, nil)
+	if err != nil {
+		b.sendError(s, i, "API Error", "Error fetching match history from Riot API")
+		return
+	}
+
+	if len(matchIDs) == 0 {
+		b.sendError(s, i, "No Games Found", fmt.Sprintf("No TFT games found for `%s#%s`", gameName, tagLine))
+		return
+	}
+
+	// Format and send the detailed response
+	embed := b.formatLastGame(account, summoner, matchIDs[0])
+	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds: &[]*discordgo.MessageEmbed{embed},
+	}); err != nil {
+		fmt.Printf("Error editing interaction response: %v\n", err)
+	}
+}
+
+// formatLastGame formats detailed info for a single TFT match
+func (b *DiscordBot) formatLastGame(account *riot.Account, summoner *riot.Summoner, matchID string) *discordgo.MessageEmbed {
+	// Get detailed match data
+	match, err := riot.GetTFTMatchByID(matchID)
+	if err != nil {
+		return &discordgo.MessageEmbed{
+			Title:       "Error",
+			Description: "Could not load match data",
+			Color:       0xff0000,
+		}
+	}
+
+	// Find the player's data in the match
+	var player *riot.ParticipantDto
+	for _, participant := range match.Info.Participants {
+		if participant.PUUID == account.PUUID {
+			player = &participant
+			break
+		}
+	}
+
+	if player == nil {
+		return &discordgo.MessageEmbed{
+			Title:       "Error",
+			Description: "Player not found in match",
+			Color:       0xff0000,
+		}
+	}
+
+	// Calculate game time and duration
+	gameTime := time.Unix(match.Info.GameCreation/1000, 0)
+	duration := int(match.Info.GameLength)
+	minutes := duration / 60
+	seconds := duration % 60
+
+	// Get placement color and emoji
+	placementEmoji := b.getPlacementEmoji(player.Placement)
+	embedColor := b.getColorByPerformance(float64(player.Placement))
+
+	// Generate AI comp name
+	gameData := []GameData{{
+		Placement: player.Placement,
+		Level:     player.Level,
+		Traits:    player.Traits,
+		Units:     player.Units,
+	}}
+	compNames := b.generateAllCompNames(gameData)
+	compName := "Unknown Comp"
+	if len(compNames) > 0 {
+		parts := strings.Split(compNames[0], " ")
+		if len(parts) >= 3 {
+			compName = strings.Join(parts[2:], " ")
+		}
+	}
+
+	// Format active traits
+	var activeTraits []string
+	for _, trait := range player.Traits {
+		if trait.TierCurrent > 0 {
+			cleanName := b.cleanTraitName(trait.Name)
+			traitStr := fmt.Sprintf("%s %d", cleanName, trait.TierCurrent)
+			if trait.Style >= 3 { // Gold or higher
+				traitStr = "⭐ " + traitStr
+			}
+			activeTraits = append(activeTraits, traitStr)
+		}
+	}
+
+	traitsText := "No active traits"
+	if len(activeTraits) > 0 {
+		if len(activeTraits) > 8 {
+			activeTraits = activeTraits[:8]
+			traitsText = strings.Join(activeTraits, " • ") + " ..."
+		} else {
+			traitsText = strings.Join(activeTraits, " • ")
+		}
+	}
+
+	// Format key champions
+	var keyChamps []string
+	for _, unit := range player.Units {
+		cleanName := b.cleanChampionName(unit.CharacterID)
+		if unit.Tier >= 2 { // 2-star or higher
+			keyChamps = append(keyChamps, fmt.Sprintf("%s★%d", cleanName, unit.Tier))
+		}
+	}
+
+	champsText := "No key champions"
+	if len(keyChamps) > 0 {
+		if len(keyChamps) > 6 {
+			keyChamps = keyChamps[:6]
+			champsText = strings.Join(keyChamps, " • ") + " ..."
+		} else {
+			champsText = strings.Join(keyChamps, " • ")
+		}
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title: fmt.Sprintf("%s Last Game - %s", placementEmoji, compName),
+		Color: embedColor,
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
+			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
+		},
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "📊 Performance",
+				Value:  fmt.Sprintf("**Placement:** #%d\n**Level:** %d\n**Duration:** %dm %ds", player.Placement, player.Level, minutes, seconds),
+				Inline: true,
+			},
+			{
+				Name:   "⚔️ Combat Stats",
+				Value:  fmt.Sprintf("**Damage:** %d\n**Gold Left:** %d\n**Set:** %d", player.TotalDamageToPlayers, player.GoldLeft, match.Info.TftSetNumber),
+				Inline: true,
+			},
+			{
+				Name:   "🎯 Active Traits",
+				Value:  traitsText,
+				Inline: false,
+			},
+			{
+				Name:   "👑 Key Champions",
+				Value:  champsText,
+				Inline: false,
+			},
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("Played %s", gameTime.Format("Jan 2, 3:04 PM")),
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	return embed
+}
+
+// getPlacementEmoji returns emoji based on placement
+func (b *DiscordBot) getPlacementEmoji(placement int) string {
+	switch placement {
+	case 1:
+		return "🥇"
+	case 2:
+		return "🥈"
+	case 3:
+		return "🥉"
+	case 4:
+		return "🟢"
+	default:
+		return "🔴"
+	}
 }
