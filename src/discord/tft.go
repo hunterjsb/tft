@@ -391,97 +391,36 @@ func (b *DiscordBot) formatLastGame(account *riot.Account, summoner *riot.Summon
 	placementEmoji := b.getPlacementEmoji(player.Placement)
 	embedColor := b.getColorByPerformance(float64(player.Placement))
 
-	// Generate AI comp name
-	gameData := []GameData{{
-		Placement: player.Placement,
-		Level:     player.Level,
-		Traits:    player.Traits,
-		Units:     player.Units,
-	}}
-	compNames := b.generateAllCompNames(gameData)
-	compName := "Unknown Comp"
-	if len(compNames) > 0 {
-		parts := strings.Split(compNames[0], " ")
-		if len(parts) >= 3 {
-			compName = strings.Join(parts[2:], " ")
-		}
-	}
+	// Generate AI analysis
+	analysis := b.generateGameAnalysis(player)
 
-	// Format active traits
-	var activeTraits []string
-	for _, trait := range player.Traits {
-		if trait.TierCurrent > 0 {
-			cleanName := b.cleanTraitName(trait.Name)
-			traitStr := fmt.Sprintf("%s %d", cleanName, trait.TierCurrent)
-			if trait.Style >= 3 { // Gold or higher
-				traitStr = "⭐ " + traitStr
-			}
-			activeTraits = append(activeTraits, traitStr)
-		}
-	}
+	// Find the main carry (highest damage dealer or best unit)
+	mainCarryIcon := b.getMainCarryIcon(player.Units)
 
-	traitsText := "No active traits"
-	if len(activeTraits) > 0 {
-		if len(activeTraits) > 8 {
-			activeTraits = activeTraits[:8]
-			traitsText = strings.Join(activeTraits, " • ") + " ..."
-		} else {
-			traitsText = strings.Join(activeTraits, " • ")
-		}
-	}
-
-	// Format key champions
-	var keyChamps []string
-	for _, unit := range player.Units {
-		cleanName := b.cleanChampionName(unit.CharacterID)
-		if unit.Tier >= 2 { // 2-star or higher
-			keyChamps = append(keyChamps, fmt.Sprintf("%s★%d", cleanName, unit.Tier))
-		}
-	}
-
-	champsText := "No key champions"
-	if len(keyChamps) > 0 {
-		if len(keyChamps) > 6 {
-			keyChamps = keyChamps[:6]
-			champsText = strings.Join(keyChamps, " • ") + " ..."
-		} else {
-			champsText = strings.Join(keyChamps, " • ")
-		}
-	}
+	// Format key champions simply
+	keyChampions := b.formatKeyChampions(player.Units)
 
 	embed := &discordgo.MessageEmbed{
-		Title: fmt.Sprintf("%s Last Game - %s", placementEmoji, compName),
+		Title: fmt.Sprintf("%s #%d • L%d • %dm %ds", placementEmoji, player.Placement, player.Level, minutes, seconds),
 		Color: embedColor,
 		Author: &discordgo.MessageEmbedAuthor{
 			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
 			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
 		},
+		Description: analysis,
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL: mainCarryIcon,
+		},
 		Fields: []*discordgo.MessageEmbedField{
 			{
-				Name:   "📊 Performance",
-				Value:  fmt.Sprintf("**Placement:** #%d\n**Level:** %d\n**Duration:** %dm %ds", player.Placement, player.Level, minutes, seconds),
-				Inline: true,
-			},
-			{
-				Name:   "⚔️ Combat Stats",
-				Value:  fmt.Sprintf("**Damage:** %d\n**Gold Left:** %d\n**Set:** %d", player.TotalDamageToPlayers, player.GoldLeft, match.Info.TftSetNumber),
-				Inline: true,
-			},
-			{
-				Name:   "🎯 Active Traits",
-				Value:  traitsText,
-				Inline: false,
-			},
-			{
-				Name:   "👑 Key Champions",
-				Value:  champsText,
+				Name:   "Key Champions",
+				Value:  keyChampions,
 				Inline: false,
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("Played %s", gameTime.Format("Jan 2, 3:04 PM")),
+			Text: fmt.Sprintf("%s • %d dmg • %d gold", gameTime.Format("Jan 2 3:04PM"), player.TotalDamageToPlayers, player.GoldLeft),
 		},
-		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	return embed
@@ -501,4 +440,163 @@ func (b *DiscordBot) getPlacementEmoji(placement int) string {
 	default:
 		return "🔴"
 	}
+}
+
+// generateGameAnalysis creates a 2-sentence AI analysis of the game
+func (b *DiscordBot) generateGameAnalysis(player *riot.ParticipantDto) string {
+	// Build descriptive analysis prompt
+	var prompt strings.Builder
+	prompt.WriteString("Describe this TFT Set 15 game in 1-2 short sentences. Bold key units/items. Focus on build and lobby performance:\n\n")
+
+	// Add game result
+	prompt.WriteString(fmt.Sprintf("#%d/8, Lvl %d, %d dmg\n", player.Placement, player.Level, player.TotalDamageToPlayers))
+
+	// Add traits (prioritize gold)
+	var traitStrs []string
+	for _, trait := range player.Traits {
+		if trait.TierCurrent > 0 {
+			cleanName := b.cleanTraitName(trait.Name)
+			if trait.Style >= 3 { // Gold traits first
+				traitStrs = append([]string{fmt.Sprintf("%s%d", cleanName, trait.TierCurrent)}, traitStrs...)
+			} else {
+				traitStrs = append(traitStrs, fmt.Sprintf("%s%d", cleanName, trait.TierCurrent))
+			}
+		}
+	}
+	if len(traitStrs) > 0 {
+		prompt.WriteString(fmt.Sprintf("Traits: %s\n", strings.Join(traitStrs, ", ")))
+	}
+
+	// Add key champions with items
+	var unitStrs []string
+	for _, unit := range player.Units {
+		if unit.Tier >= 2 || len(unit.Items) >= 2 {
+			cleanName := b.cleanChampionName(unit.CharacterID)
+			unitStr := fmt.Sprintf("%s★%d", cleanName, unit.Tier)
+
+			// Add items for important units
+			if len(unit.Items) > 0 {
+				var items []string
+				for _, itemID := range unit.Items {
+					if itemID > 0 {
+						items = append(items, fmt.Sprintf("%d", itemID))
+					}
+				}
+				if len(items) > 0 {
+					unitStr += fmt.Sprintf("(%s)", strings.Join(items, ","))
+				}
+			}
+			unitStrs = append(unitStrs, unitStr)
+		}
+	}
+	if len(unitStrs) > 0 {
+		if len(unitStrs) > 4 {
+			unitStrs = unitStrs[:4]
+		}
+		prompt.WriteString(fmt.Sprintf("Key Units: %s\n", strings.Join(unitStrs, ", ")))
+	}
+
+	// Note: Augments not available in current API response
+
+	prompt.WriteString("\nBe concise. Bold important units/items using **bold**.")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	analysis, err := b.OpenAI.GenerateResponse(ctx, prompt.String())
+	if err != nil {
+		fmt.Printf("AI Analysis error: %v\n", err)
+		return "Analysis failed"
+	}
+
+	// Clean up response
+	analysis = strings.TrimSpace(analysis)
+	if len(analysis) > 180 {
+		analysis = analysis[:177] + "..."
+	}
+
+	return analysis
+}
+
+// getMainCarryIcon finds the main carry champion (highest damage or best unit)
+func (b *DiscordBot) getMainCarryIcon(units []riot.UnitDto) string {
+	var mainCarry riot.UnitDto
+
+	// First priority: 3-star units with items (likely main carry)
+	for _, unit := range units {
+		if unit.Tier >= 3 && len(unit.Items) >= 2 {
+			if len(mainCarry.Items) < len(unit.Items) || mainCarry.Tier < unit.Tier {
+				mainCarry = unit
+			}
+		}
+	}
+
+	// Second priority: any 3-star unit
+	if mainCarry.CharacterID == "" {
+		for _, unit := range units {
+			if unit.Tier >= 3 {
+				mainCarry = unit
+				break
+			}
+		}
+	}
+
+	// Fallback: highest tier unit with most items
+	if mainCarry.CharacterID == "" {
+		for _, unit := range units {
+			if unit.Tier > mainCarry.Tier || (unit.Tier == mainCarry.Tier && len(unit.Items) > len(mainCarry.Items)) {
+				mainCarry = unit
+			}
+		}
+	}
+
+	if mainCarry.CharacterID != "" {
+		cleanName := b.cleanChampionName(mainCarry.CharacterID)
+		return fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/champion/%s.png", cleanName)
+	}
+
+	return ""
+}
+
+// formatKeyChampions formats champions in a simple, readable way
+func (b *DiscordBot) formatKeyChampions(units []riot.UnitDto) string {
+	var champLines []string
+
+	// Get top champions sorted by star level
+	for tier := 3; tier >= 2; tier-- {
+		for _, unit := range units {
+			if unit.Tier == tier {
+				cleanName := b.cleanChampionName(unit.CharacterID)
+
+				// Format items simply as numbers
+				var items []string
+				for _, itemID := range unit.Items {
+					if itemID > 0 {
+						items = append(items, fmt.Sprintf("%d", itemID))
+					}
+				}
+
+				itemsText := ""
+				if len(items) > 0 {
+					itemsText = fmt.Sprintf(" [%s]", strings.Join(items, ", "))
+				}
+
+				champText := fmt.Sprintf("**%s**★%d%s", cleanName, unit.Tier, itemsText)
+				champLines = append(champLines, champText)
+
+				if len(champLines) >= 4 {
+					break
+				}
+			}
+		}
+		if len(champLines) >= 4 {
+			break
+		}
+	}
+
+	if len(champLines) == 0 {
+		return "No key champions"
+	}
+
+	return strings.Join(champLines, " • ")
 }
