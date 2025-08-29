@@ -252,3 +252,55 @@ func TestLoadDefault_FileNotFound(t *testing.T) {
 		t.Error("Expected error when .env file doesn't exist")
 	}
 }
+
+func TestLoad_InlineComments(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "dotenv_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	envFile := filepath.Join(tmpDir, ".env")
+	content := `IN_UNQUOTED=value # trailing comment
+IN_QUOTED="value # not a comment"
+SINGLE_QUOTED='v # not a comment'
+LEADING_HASH=   # only comment
+MIXED_SPACES=  spaced   # comment
+ONLY_COMMENT=    # another`
+
+	err = os.WriteFile(envFile, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test .env file: %v", err)
+	}
+
+	err = Load(envFile)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	cases := []struct {
+		key, want string
+	}{
+		{"IN_UNQUOTED", "value"},
+		{"IN_QUOTED", "value # not a comment"},
+		{"SINGLE_QUOTED", "v # not a comment"},
+		{"MIXED_SPACES", "spaced"},
+	}
+
+	for _, c := range cases {
+		got := os.Getenv(c.key)
+		if got != c.want {
+			t.Errorf("%s: want %q, got %q", c.key, c.want, got)
+		}
+	}
+
+	for _, c := range cases {
+		if err := os.Unsetenv(c.key); err != nil {
+			t.Fatalf("Failed to unset %s: %v", c.key, err)
+		}
+	}
+}
