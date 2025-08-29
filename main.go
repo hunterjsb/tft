@@ -6,7 +6,6 @@ import (
 
 	"github.com/hunterjsb/tft/src/discord"
 	"github.com/hunterjsb/tft/src/dotenv"
-	"github.com/hunterjsb/tft/src/riot"
 )
 
 func main() {
@@ -17,20 +16,7 @@ func main() {
 		fmt.Println("Continuing with environment variables from system...")
 	}
 
-	// Check if we should run Discord bot or TFT functionality
-	mode := os.Getenv("MODE")
-
-	switch mode {
-	case "discord":
-		runDiscordBot()
-	case "tft":
-		runTFTDemo()
-	default:
-		fmt.Println("MODE environment variable not set or invalid.")
-		fmt.Println("Set MODE=discord to run Discord bot or MODE=tft to run TFT demo")
-		fmt.Println("Running TFT demo by default...")
-		runTFTDemo()
-	}
+	runDiscordBot()
 }
 
 func runDiscordBot() {
@@ -73,24 +59,4 @@ func runDiscordBot() {
 	// Block main goroutine indefinitely
 	fmt.Println("Bot is now running. Press CTRL-C to exit.")
 	select {}
-}
-
-func runTFTDemo() {
-	fmt.Println("Starting TFT demo mode...")
-
-	summoner, account, err := riot.GetSummonerByRiotId("mubs", "NA1")
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Found %s#%s (Level %d)\n", account.GameName, account.TagLine, summoner.SummonerLevel)
-
-	matchIds, err := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 20, nil, nil)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Match IDs: %v\n", matchIds)
 }
