@@ -4,7 +4,10 @@
 Simple Riot Games API client for Teamfight Tactics data.
 
 ## Setup
-Add your Riot API key to `.env`: `RIOT_API_KEY=your_key_here`
+See .env.example for environment variables. They key ones are:
+- RIOT_API_KEY
+- DISCORD_TOKEN
+- OPENAI_API_KEY
 
 ## Usage
-`go run .` to fetch summoner data via Riot ID.
+`go run .` to start the bot.
