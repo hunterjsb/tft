@@ -23,7 +23,6 @@ func NewChatHandler(openAIToken string, maxTokens int, temperature float64) *Cha
 
 // HandleChatCommand handles the /chat command
 func (h *ChatHandler) HandleChatCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// Acknowledge the interaction immediately
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	}); err != nil {
@@ -31,73 +30,51 @@ func (h *ChatHandler) HandleChatCommand(s *discordgo.Session, i *discordgo.Inter
 		return
 	}
 
-	// Get the prompt option
-	options := i.ApplicationCommandData().Options
-	promptOption := options[0].StringValue()
+	prompt := i.ApplicationCommandData().Options[0].StringValue()
 
-	// Generate response from OpenAI
-	response, err := h.openAI.GenerateResponse(context.Background(), promptOption)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	response, err := h.openAI.GenerateResponse(ctx, prompt)
 	if err != nil {
-		fmt.Printf("Error generating response: %v\n", err)
-		errorEmbed := h.createErrorEmbed("AI Error", "Sorry, I couldn't process your request. Please try again later.")
-		if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Embeds: &errorEmbed,
-		}); editErr != nil {
-			fmt.Printf("Error editing interaction response: %v\n", editErr)
-		}
+		h.sendError(s, i, "AI Error", "Failed to generate response")
 		return
 	}
 
-	// Check if response is too long for Discord embed (max 4096 chars for description)
 	if len(response) > 4000 {
-		// Split into multiple embeds
-		embeds := h.createLongResponseEmbeds(response)
-		if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Embeds: &embeds,
-		}); err != nil {
-			fmt.Printf("Error editing interaction response: %v\n", err)
-		}
+		h.sendLongResponse(s, i, response)
 	} else {
-		// Send as single embed
-		embeds := h.createResponseEmbed(response)
-		if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Embeds: &embeds,
-		}); err != nil {
-			fmt.Printf("Error editing interaction response: %v\n", err)
-		}
+		h.sendResponse(s, i, response)
 	}
 }
 
-// createResponseEmbed creates embed for AI response
-func (h *ChatHandler) createResponseEmbed(response string) []*discordgo.MessageEmbed {
-	return []*discordgo.MessageEmbed{
-		{
-			Title:       "🤖 AI Response",
-			Description: response,
-			Color:       0x00ff00,
-			Timestamp:   time.Now().Format(time.RFC3339),
-			Footer: &discordgo.MessageEmbedFooter{
-				Text: "Powered by OpenAI",
-			},
+// sendResponse sends a single embed response
+func (h *ChatHandler) sendResponse(s *discordgo.Session, i *discordgo.InteractionCreate, response string) {
+	embed := []*discordgo.MessageEmbed{{
+		Title:       "AI Response",
+		Description: response,
+		Color:       0x00ff00,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Powered by OpenAI",
 		},
-	}
+		Timestamp: time.Now().Format(time.RFC3339),
+	}}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Embeds: &embed})
 }
 
-// createLongResponseEmbeds creates multiple embeds for long AI responses
-func (h *ChatHandler) createLongResponseEmbeds(response string) []*discordgo.MessageEmbed {
+// sendLongResponse splits long responses into multiple embeds
+func (h *ChatHandler) sendLongResponse(s *discordgo.Session, i *discordgo.InteractionCreate, response string) {
+	chunks := h.chunkString(response, 3900)
 	var embeds []*discordgo.MessageEmbed
-
-	// Split response into chunks (max 4000 chars per embed description)
-	chunks := h.chunkString(response, 4000)
 
 	for i, chunk := range chunks {
 		embed := &discordgo.MessageEmbed{
-			Title:       fmt.Sprintf("🤖 AI Response (Part %d of %d)", i+1, len(chunks)),
+			Title:       fmt.Sprintf("AI Response (Part %d/%d)", i+1, len(chunks)),
 			Description: chunk,
 			Color:       0x00ff00,
 		}
 
-		// Add footer only to the last embed
 		if i == len(chunks)-1 {
 			embed.Footer = &discordgo.MessageEmbedFooter{
 				Text: "Powered by OpenAI",
@@ -108,67 +85,48 @@ func (h *ChatHandler) createLongResponseEmbeds(response string) []*discordgo.Mes
 		embeds = append(embeds, embed)
 	}
 
-	return embeds
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Embeds: &embeds})
 }
 
-// createErrorEmbed creates error message embed
-func (h *ChatHandler) createErrorEmbed(title, description string) []*discordgo.MessageEmbed {
-	return []*discordgo.MessageEmbed{
-		{
-			Title:       fmt.Sprintf("❌ %s", title),
-			Description: description,
-			Color:       0xff0000,
-			Timestamp:   time.Now().Format(time.RFC3339),
-		},
-	}
+// sendError sends an error embed
+func (h *ChatHandler) sendError(s *discordgo.Session, i *discordgo.InteractionCreate, title, desc string) {
+	embed := []*discordgo.MessageEmbed{{
+		Title:       title,
+		Description: desc,
+		Color:       0xff0000,
+	}}
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Embeds: &embed})
 }
 
-// chunkString splits a string into smaller parts
+// chunkString splits a string into smaller parts at word boundaries
 func (h *ChatHandler) chunkString(s string, chunkSize int) []string {
 	if len(s) <= chunkSize {
 		return []string{s}
 	}
 
 	var chunks []string
-
-	// Try to split at line breaks when possible
-	lines := strings.Split(s, "\n")
+	words := strings.Fields(s)
 	currentChunk := ""
 
-	for _, line := range lines {
-		// If adding this line would exceed the chunk size, start a new chunk
-		if len(currentChunk)+len(line)+1 > chunkSize {
-			// If current chunk is not empty, add it to chunks
+	for _, word := range words {
+		if len(currentChunk)+len(word)+1 > chunkSize {
 			if currentChunk != "" {
 				chunks = append(chunks, currentChunk)
-				currentChunk = ""
-			}
-
-			// If the line itself is too long, split it by characters
-			if len(line) > chunkSize {
-				for len(line) > 0 {
-					if len(line) <= chunkSize {
-						currentChunk = line
-						break
-					}
-
-					chunks = append(chunks, line[:chunkSize])
-					line = line[chunkSize:]
-				}
+				currentChunk = word
 			} else {
-				currentChunk = line
+				// Word itself is too long, split by characters
+				chunks = append(chunks, word[:chunkSize])
+				currentChunk = word[chunkSize:]
 			}
 		} else {
-			// Add line to current chunk
 			if currentChunk == "" {
-				currentChunk = line
+				currentChunk = word
 			} else {
-				currentChunk += "\n" + line
+				currentChunk += " " + word
 			}
 		}
 	}
 
-	// Add the last chunk if it's not empty
 	if currentChunk != "" {
 		chunks = append(chunks, currentChunk)
 	}
