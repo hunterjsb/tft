@@ -218,6 +218,7 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 // formatTFTMatches formats TFT match data into a single embed
 func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summoner, matchIDs []string) *discordgo.MessageEmbed {
 	var gamesSummary []string
+	var gameData []GameData
 	avgPlacement := 0.0
 	top4Count := 0
 
@@ -252,17 +253,18 @@ func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summ
 			top4Count++
 		}
 
-		// Get main trait
-		mainTrait := "No traits"
-		for _, trait := range player.Traits {
-			if trait.TierCurrent > 0 {
-				mainTrait = fmt.Sprintf("%s%d", trait.Name, trait.TierCurrent)
-				break
-			}
+		// Collect game data for AI analysis
+		data := GameData{
+			Placement: player.Placement,
+			Level:     player.Level,
+			Traits:    player.Traits,
+			Units:     player.Units,
 		}
+		gameData = append(gameData, data)
 
-		gamesSummary = append(gamesSummary, fmt.Sprintf("#%d L%d %s",
-			player.Placement, player.Level, mainTrait))
+		// Store temporary format for now
+		gamesSummary = append(gamesSummary, fmt.Sprintf("#%d L%d Analyzing...",
+			player.Placement, player.Level))
 	}
 
 	validGames := len(gamesSummary)
@@ -271,6 +273,11 @@ func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summ
 	}
 
 	top4Rate := float64(top4Count) / float64(validGames) * 100
+
+	// Generate AI comp names for all games at once
+	if validGames > 0 && len(gameData) > 0 {
+		gamesSummary = b.generateAllCompNames(gameData)
+	}
 
 	embed := &discordgo.MessageEmbed{
 		Title: "Recent TFT Games",
@@ -370,4 +377,134 @@ func (b *DiscordBot) sendError(s *discordgo.Session, i *discordgo.InteractionCre
 	}); err != nil {
 		fmt.Printf("Error editing error response: %v\n", err)
 	}
+}
+
+// cleanTraitName removes API prefixes and makes trait names user-friendly
+func (b *DiscordBot) cleanTraitName(traitName string) string {
+	// Remove TFT15_ prefix (or any TFTxx_ prefix)
+	if strings.HasPrefix(traitName, "TFT") {
+		if underscoreIndex := strings.Index(traitName, "_"); underscoreIndex != -1 {
+			traitName = traitName[underscoreIndex+1:]
+		}
+	}
+
+	return traitName
+}
+
+// GameData holds data for AI analysis
+type GameData struct {
+	Placement int
+	Level     int
+	Traits    []riot.TraitDto
+	Units     []riot.UnitDto
+}
+
+// generateAllCompNames uses AI to create comp names for all games in one call
+func (b *DiscordBot) generateAllCompNames(games []GameData) []string {
+	if b.OpenAI == nil || len(games) == 0 {
+		// Fallback without AI
+		result := make([]string, len(games))
+		for i, game := range games {
+			mainTrait := "Unknown"
+			for _, trait := range game.Traits {
+				if trait.TierCurrent > 0 {
+					mainTrait = b.cleanTraitName(trait.Name)
+					break
+				}
+			}
+			result[i] = fmt.Sprintf("#%d L%d %s", game.Placement, game.Level, mainTrait)
+		}
+		return result
+	}
+
+	// Build detailed prompt with champions and items
+	var prompt strings.Builder
+	prompt.WriteString("Create short 2-3 word TFT comp names. Include carry champion names when relevant. Respond with just the names, one per line:\n\n")
+
+	for i, game := range games {
+		prompt.WriteString(fmt.Sprintf("Game %d:\n", i+1))
+
+		// Add traits
+		var activeTraits []string
+		for _, trait := range game.Traits {
+			if trait.TierCurrent > 0 {
+				cleanName := b.cleanTraitName(trait.Name)
+				activeTraits = append(activeTraits, fmt.Sprintf("%s%d", cleanName, trait.TierCurrent))
+			}
+		}
+		prompt.WriteString(fmt.Sprintf("Traits: %s\n", strings.Join(activeTraits, ", ")))
+
+		// Add key champions (3-star and 2-star units)
+		var keyChamps []string
+		for _, unit := range game.Units {
+			cleanName := b.cleanChampionName(unit.CharacterID)
+			if unit.Tier >= 2 { // 2-star or higher
+				keyChamps = append(keyChamps, fmt.Sprintf("%s%d", cleanName, unit.Tier))
+			}
+		}
+		if len(keyChamps) > 0 {
+			prompt.WriteString(fmt.Sprintf("Key Champions: %s\n", strings.Join(keyChamps, ", ")))
+		}
+		prompt.WriteString("\n")
+	}
+
+	prompt.WriteString("Examples: 'Jinx Sniper', 'Smolder Carry', 'Reroll Bruiser', 'Fast 9', 'Flex Board'. Focus on main carry champions.")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	response, err := b.OpenAI.GenerateResponse(ctx, prompt.String())
+	if err != nil {
+		// Fallback without AI
+		result := make([]string, len(games))
+		for i, game := range games {
+			mainTrait := "Unknown"
+			for _, trait := range game.Traits {
+				if trait.TierCurrent > 0 {
+					mainTrait = b.cleanTraitName(trait.Name)
+					break
+				}
+			}
+			result[i] = fmt.Sprintf("#%d L%d %s", game.Placement, game.Level, mainTrait)
+		}
+		return result
+	}
+
+	// Parse AI response
+	compNames := strings.Split(strings.TrimSpace(response), "\n")
+
+	// Create final summaries
+	result := make([]string, len(games))
+	for i, game := range games {
+		if i < len(compNames) {
+			compName := strings.TrimSpace(compNames[i])
+			// Remove "Game X:" prefix if present
+			if colonIndex := strings.Index(compName, ":"); colonIndex != -1 {
+				compName = strings.TrimSpace(compName[colonIndex+1:])
+			}
+			// Limit length
+			if len(compName) > 15 {
+				compName = compName[:15]
+			}
+			if compName == "" {
+				compName = "Unknown"
+			}
+			result[i] = fmt.Sprintf("#%d L%d %s", game.Placement, game.Level, compName)
+		} else {
+			result[i] = fmt.Sprintf("#%d L%d Unknown", game.Placement, game.Level)
+		}
+	}
+
+	return result
+}
+
+// cleanChampionName removes API prefixes from champion names
+func (b *DiscordBot) cleanChampionName(championID string) string {
+	// Remove TFT15_ prefix
+	if strings.HasPrefix(championID, "TFT") {
+		if underscoreIndex := strings.Index(championID, "_"); underscoreIndex != -1 {
+			championID = championID[underscoreIndex+1:]
+		}
+	}
+	return championID
 }
