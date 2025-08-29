@@ -12,7 +12,7 @@ func Load(filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -37,7 +37,9 @@ func Load(filename string) error {
 			value = value[1 : len(value)-1]
 		}
 
-		os.Setenv(key, value)
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
 	}
 
 	return scanner.Err()

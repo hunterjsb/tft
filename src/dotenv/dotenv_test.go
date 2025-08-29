@@ -12,7 +12,11 @@ func TestLoad_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	envFile := filepath.Join(tmpDir, ".env")
 	content := `# This is a comment
@@ -54,7 +58,9 @@ TEST_KEY4=value4`
 
 	// Clean up environment variables
 	for _, tt := range tests {
-		os.Unsetenv(tt.key)
+		if err := os.Unsetenv(tt.key); err != nil {
+			t.Fatalf("Failed to unset %s: %v", tt.key, err)
+		}
 	}
 }
 
@@ -70,7 +76,11 @@ func TestLoad_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	envFile := filepath.Join(tmpDir, "empty.env")
 	err = os.WriteFile(envFile, []byte(""), 0644)
@@ -89,7 +99,11 @@ func TestLoad_CommentsAndEmptyLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	envFile := filepath.Join(tmpDir, ".env")
 	content := `# Comment at start
@@ -112,7 +126,9 @@ TEST_COMMENT=value
 		t.Error("Expected TEST_COMMENT=value")
 	}
 
-	os.Unsetenv("TEST_COMMENT")
+	if err := os.Unsetenv("TEST_COMMENT"); err != nil {
+		t.Fatalf("Failed to unset TEST_COMMENT: %v", err)
+	}
 }
 
 func TestLoad_InvalidLines(t *testing.T) {
@@ -120,7 +136,11 @@ func TestLoad_InvalidLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	envFile := filepath.Join(tmpDir, ".env")
 	content := `VALID_KEY=value
@@ -146,8 +166,12 @@ ANOTHER_VALID=another_value
 		t.Error("Expected ANOTHER_VALID=another_value")
 	}
 
-	os.Unsetenv("VALID_KEY")
-	os.Unsetenv("ANOTHER_VALID")
+	if err := os.Unsetenv("VALID_KEY"); err != nil {
+		t.Fatalf("Failed to unset VALID_KEY: %v", err)
+	}
+	if err := os.Unsetenv("ANOTHER_VALID"); err != nil {
+		t.Fatalf("Failed to unset ANOTHER_VALID: %v", err)
+	}
 }
 
 func TestLoadDefault_Success(t *testing.T) {
@@ -165,7 +189,11 @@ func TestLoadDefault_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	err = os.Chdir(tmpDir)
 	if err != nil {
@@ -188,7 +216,9 @@ func TestLoadDefault_Success(t *testing.T) {
 		t.Error("Expected DEFAULT_TEST=success")
 	}
 
-	os.Unsetenv("DEFAULT_TEST")
+	if err := os.Unsetenv("DEFAULT_TEST"); err != nil {
+		t.Fatalf("Failed to unset DEFAULT_TEST: %v", err)
+	}
 }
 
 func TestLoadDefault_FileNotFound(t *testing.T) {
@@ -206,7 +236,11 @@ func TestLoadDefault_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Fatalf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	err = os.Chdir(tmpDir)
 	if err != nil {
