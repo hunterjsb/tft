@@ -6,15 +6,6 @@ import (
 	"strconv"
 )
 
-type Config struct {
-	DiscordToken string
-	OpenAIToken  string
-	GuildID      string
-	ChannelID    string
-	MaxTokens    int
-	Temperature  float64
-}
-
 func LoadConfig() (*Config, error) {
 	maxTokens := 150
 	if maxTokensStr := os.Getenv("MAX_TOKENS"); maxTokensStr != "" {
