@@ -181,10 +181,16 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 		}
 	}
 
-	// Get account information
+	// Get account and summoner information
 	account, err := riot.GetAccountByRiotId(gameName, tagLine)
 	if err != nil {
 		b.sendError(s, i, "Player Not Found", fmt.Sprintf("Could not find player `%s#%s`", gameName, tagLine))
+		return
+	}
+
+	summoner, err := riot.GetSummonerByPUUID(account.PUUID)
+	if err != nil {
+		b.sendError(s, i, "API Error", "Error fetching summoner data")
 		return
 	}
 
@@ -201,7 +207,7 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 	}
 
 	// Format and send the response
-	embed := b.formatTFTMatches(account, matchIDs)
+	embed := b.formatTFTMatches(account, summoner, matchIDs)
 	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}); err != nil {
@@ -210,7 +216,7 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 }
 
 // formatTFTMatches formats TFT match data into a single embed
-func (b *DiscordBot) formatTFTMatches(account *riot.Account, matchIDs []string) *discordgo.MessageEmbed {
+func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summoner, matchIDs []string) *discordgo.MessageEmbed {
 	var gamesSummary []string
 	avgPlacement := 0.0
 	top4Count := 0
@@ -267,12 +273,16 @@ func (b *DiscordBot) formatTFTMatches(account *riot.Account, matchIDs []string) 
 	top4Rate := float64(top4Count) / float64(validGames) * 100
 
 	embed := &discordgo.MessageEmbed{
-		Title: fmt.Sprintf("%s#%s Recent Games", account.GameName, account.TagLine),
+		Title: "Recent TFT Games",
 		Color: b.getColorByPerformance(avgPlacement),
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
+			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
+		},
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Performance",
-				Value:  fmt.Sprintf("Avg: #%.1f\nTop4: %.0f%%", avgPlacement, top4Rate),
+				Value:  fmt.Sprintf("Avg: #%.1f\nTop4: %.0f%%\nLevel: %d", avgPlacement, top4Rate, summoner.SummonerLevel),
 				Inline: true,
 			},
 			{
