@@ -24,7 +24,7 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 
 	// Parse command options
 	gameName := options[0].StringValue()
-	tagLine := "NA1" // default
+	tagLine := DEFAULT_REGION
 	if len(options) > 1 && options[1].StringValue() != "" {
 		tagLine = options[1].StringValue()
 	}
@@ -313,7 +313,7 @@ func (b *DiscordBot) handleLastGameCommand(s *discordgo.Session, i *discordgo.In
 
 	// Parse command options
 	gameName := options[0].StringValue()
-	tagLine := "NA1" // default
+	tagLine := DEFAULT_REGION
 	if len(options) > 1 && options[1].StringValue() != "" {
 		tagLine = options[1].StringValue()
 	}

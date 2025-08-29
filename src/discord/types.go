@@ -6,6 +6,8 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+const DEFAULT_REGION = "NA1"
+
 // DiscordBot represents a Discord bot
 type DiscordBot struct {
 	Session         *discordgo.Session
