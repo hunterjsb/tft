@@ -20,7 +20,7 @@ func main() {
 }
 
 func runDiscordBot() {
-	fmt.Println("Starting Discord bot mode...")
+	fmt.Println("Starting Discord bot...")
 
 	// Load Discord bot configuration
 	config, err := discord.LoadConfig()
