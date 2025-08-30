@@ -2,7 +2,7 @@ package discord
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"github.com/hunterjsb/tft/src/riot"
+	"github.com/hunterjsb/tft/internal/riot"
 	"github.com/sashabaranov/go-openai"
 )
 

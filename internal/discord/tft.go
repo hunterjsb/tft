@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/hunterjsb/tft/src/riot"
+	"github.com/hunterjsb/tft/internal/riot"
 )
 
 // handleTFTRecentCommand handles the /tftrecent command

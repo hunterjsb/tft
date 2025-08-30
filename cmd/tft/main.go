@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hunterjsb/tft/src/discord"
-	"github.com/hunterjsb/tft/src/dotenv"
+	"github.com/hunterjsb/tft/internal/discord"
+	"github.com/hunterjsb/tft/internal/dotenv"
 )
 
 func main() {
@@ -20,7 +20,6 @@ func main() {
 }
 
 func runDiscordBot() {
-	fmt.Println("Starting Discord bot...")
 
 	// Load Discord bot configuration
 	config, err := discord.LoadConfig()
@@ -52,7 +51,7 @@ func runDiscordBot() {
 
 	// Set up graceful shutdown
 	discord.SetupCloseHandler(func() error {
-		fmt.Println("Shutting down bot...")
+
 		return bot.Stop()
 	})
 
