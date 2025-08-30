@@ -3,9 +3,16 @@ package riot
 import (
 	"os"
 	"testing"
+
+	"github.com/hunterjsb/tft/internal/dotenv"
 )
 
 func TestMain(m *testing.M) {
+	// Try to load environment variables from .env file (ignore errors for CI/CD)
+	// In GitHub Actions, the RIOT_API_KEY will be set as an environment variable
+	_ = dotenv.LoadDefault()
+	_ = dotenv.Load("../../.env")
+
 	if os.Getenv("RIOT_API_KEY") == "" {
 		println("RIOT_API_KEY not set, skipping integration tests")
 		os.Exit(0)

@@ -2,6 +2,7 @@ package riot
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -164,5 +165,54 @@ func BenchmarkGetTFTMatchIDsByPUUID(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Benchmark failed: %v", err)
 		}
+	}
+}
+
+func TestGetActiveTFTGameByPUUID(t *testing.T) {
+	if os.Getenv("RIOT_API_KEY") == "" {
+		t.Skip("RIOT_API_KEY not set")
+	}
+
+	account, err := GetAccountByRiotId("mubs", "NA1")
+	if err != nil {
+		t.Fatalf("Failed to get account for test: %v", err)
+	}
+
+	info, err := GetActiveTFTGameByPUUID(account.PUUID)
+	if err != nil {
+		// 404 indicates the player is not currently in an active game; treat as non-fatal/skip
+		if strings.Contains(err.Error(), "status 404") {
+			t.Skip("Player is not currently in an active TFT game (404)")
+		}
+		t.Fatalf("Failed to get active TFT game: %v", err)
+	}
+
+	if info.GameID == 0 {
+		t.Error("Expected non-zero GameID")
+	}
+	if len(info.Participants) == 0 {
+		t.Error("Expected at least one participant")
+	}
+
+	found := false
+	for _, p := range info.Participants {
+		if p.PUUID == account.PUUID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected requesting PUUID to be among participants")
+	}
+}
+
+func TestGetActiveTFTGameByPUUID_InvalidPUUID(t *testing.T) {
+	if os.Getenv("RIOT_API_KEY") == "" {
+		t.Skip("RIOT_API_KEY not set")
+	}
+
+	_, err := GetActiveTFTGameByPUUID("invalid-puuid")
+	if err == nil {
+		t.Error("Expected error for invalid PUUID")
 	}
 }

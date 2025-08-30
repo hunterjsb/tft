@@ -1,5 +1,7 @@
 package riot
 
+import "fmt"
+
 // API Base URLs
 const (
 	RIOT_AMERICAS_URL = "https://americas.api.riotgames.com"
@@ -94,4 +96,66 @@ type UnitDto struct {
 	Name        string   `json:"name"`
 	Rarity      int      `json:"rarity"`
 	Tier        int      `json:"tier"`
+}
+
+// Spectator TFT v5 Types
+
+type CurrentGameInfo struct {
+	GameID            int64                    `json:"gameId"`
+	GameType          string                   `json:"gameType"`
+	GameStartTime     int64                    `json:"gameStartTime"`
+	MapID             int64                    `json:"mapId"`
+	GameLength        int64                    `json:"gameLength"`
+	PlatformID        string                   `json:"platformId"`
+	GameMode          string                   `json:"gameMode"`
+	BannedChampions   []BannedChampion         `json:"bannedChampions"`
+	GameQueueConfigID int64                    `json:"gameQueueConfigId"`
+	Observers         Observer                 `json:"observers"`
+	Participants      []CurrentGameParticipant `json:"participants"`
+}
+
+type BannedChampion struct {
+	PickTurn   int   `json:"pickTurn"`
+	ChampionID int64 `json:"championId"`
+	TeamID     int64 `json:"teamId"`
+}
+
+type Observer struct {
+	EncryptionKey string `json:"encryptionKey"`
+}
+
+type CurrentGameParticipant struct {
+	ChampionID             int64                     `json:"championId"`
+	Perks                  Perks                     `json:"perks"`
+	ProfileIconID          int64                     `json:"profileIconId"`
+	TeamID                 int64                     `json:"teamId"`
+	PUUID                  string                    `json:"puuid"`
+	Spell1ID               int64                     `json:"spell1Id"`
+	Spell2ID               int64                     `json:"spell2Id"`
+	GameCustomizationItems []GameCustomizationObject `json:"gameCustomizationObjects"`
+}
+
+type Perks struct {
+	PerkIds      []int64 `json:"perkIds"`
+	PerkStyle    int64   `json:"perkStyle"`
+	PerkSubStyle int64   `json:"perkSubStyle"`
+}
+
+type GameCustomizationObject struct {
+	Category string `json:"category"`
+	Content  string `json:"content"`
+}
+
+// Spectator TFT v5 Client
+
+// GetActiveTFTGameByPUUID returns current game information for the given PUUID on NA1.
+func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
+	endpoint := fmt.Sprintf("/lol/spectator/tft/v5/active-games/by-puuid/%s", puuid)
+	url := buildNA1URL(endpoint)
+
+	var info CurrentGameInfo
+	if err := makeAPIRequest(url, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
 }
