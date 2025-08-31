@@ -1,0 +1,128 @@
+{
+  "gameId": 5359015295,
+  "gameType": "MATCHED",
+  "gameStartTime": 1756601147894,
+  "mapId": 22,
+  "gameLength": 1840,
+  "platformId": "NA1",
+  "gameMode": "TFT",
+  "bannedChampions": [],
+  "gameQueueConfigId": 1100,
+  "observers": {
+    "encryptionKey": "qTm8z12hKY69WaGwBMFMFDmkehsgOCqs"
+  },
+  "participants": [
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 5331,
+      "teamId": 100,
+      "puuid": "S7385disFDbPwDqOGvxT2q_V0-TtIrhTolM55G97WtT4APix8dQtU_fnOYI_OkSNn7HxDDu-dS1AFA",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 5294,
+      "teamId": 100,
+      "puuid": "wK852zAVYWrQYSQcaRg9__O5cEEbik3gj9CAPIShNwaJ-c_sd5jd3M5lUvIWdgWDNOBpSNOIwn0sbw",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 6813,
+      "teamId": 100,
+      "puuid": "EY0_IzCQBZiezk4hcMnllAwEuYSIE73mtB3-DGe6VCLO8zQWmocjZSEwv2ai-2Vhvt2baRo-Lh3A7A",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 6296,
+      "teamId": 100,
+      "puuid": "N1DGqNBX5y2lbvyCGrDe_hZHxdPkzSUBPN1XSYVC2xeXX3HU9vvnXGHY5c0drDPf41uhTtQuTJSurQ",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 23,
+      "teamId": 100,
+      "puuid": "vDtbF-_8wVwcbm_BN67Ue_jKtIRuU6yJRRy6TTo5Li8DJbtZhbdVn8Rg1Ckd8mc9SFWyQas2husPzA",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 7,
+      "teamId": 100,
+      "puuid": "CxWfckXAU307tY-1i-Zc_WbKzif4kDwbgbDr-qceawHtHNLMc73wsY-oepIQrYMbxc-riUzq0_3ULA",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 1666,
+      "teamId": 100,
+      "puuid": "H4ZLutZMTo6XyQrJNGgBwvJbDeSKYhitSpgzXZpYS7iHAo6Q4bwOB32PqhiDxW6dsTV9nlWkwxHC-A",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    },
+    {
+      "championId": 145,
+      "perks": {
+        "perkIds": null,
+        "perkStyle": 0,
+        "perkSubStyle": 0
+      },
+      "profileIconId": 5875,
+      "teamId": 100,
+      "puuid": "cAqeuQWnvGXiJw5rRoHtg9h954v4bPj1WHUTUcCNW77T0dJsHijqIVkQRkS6UQsZLhvnHPSVXtThCA",
+      "spell1Id": 6,
+      "spell2Id": 7,
+      "gameCustomizationObjects": []
+    }
+  ]
+}

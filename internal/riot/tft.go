@@ -59,3 +59,15 @@ func GetTFTMatchIDsByPUUID(puuid string, start, count int, startTime, endTime *i
 func GetTFTMatchIDsByPUUIDSimple(puuid string) ([]string, error) {
 	return GetTFTMatchIDsByPUUID(puuid, 0, 20, nil, nil)
 }
+
+// GetActiveTFTGameByPUUID returns current game information for the given PUUID on NA1.
+func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
+	endpoint := fmt.Sprintf("/lol/spectator/tft/v5/active-games/by-puuid/%s", puuid)
+	url := buildNA1URL(endpoint)
+
+	var info CurrentGameInfo
+	if err := makeAPIRequest(url, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}

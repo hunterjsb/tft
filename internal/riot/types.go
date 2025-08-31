@@ -1,7 +1,5 @@
 package riot
 
-import "fmt"
-
 // API Base URLs
 const (
 	RIOT_AMERICAS_URL = "https://americas.api.riotgames.com"
@@ -144,18 +142,4 @@ type Perks struct {
 type GameCustomizationObject struct {
 	Category string `json:"category"`
 	Content  string `json:"content"`
-}
-
-// Spectator TFT v5 Client
-
-// GetActiveTFTGameByPUUID returns current game information for the given PUUID on NA1.
-func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
-	endpoint := fmt.Sprintf("/lol/spectator/tft/v5/active-games/by-puuid/%s", puuid)
-	url := buildNA1URL(endpoint)
-
-	var info CurrentGameInfo
-	if err := makeAPIRequest(url, &info); err != nil {
-		return nil, err
-	}
-	return &info, nil
 }
