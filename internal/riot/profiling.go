@@ -91,6 +91,7 @@ type CostPreference struct {
 type ProfileAnalyzer struct {
 	MaxGamesToAnalyze int // default 20
 	MinGamesRequired  int // default 5
+	Cache             *Cache
 }
 
 // NewProfileAnalyzer creates a new analyzer with default settings
@@ -98,27 +99,68 @@ func NewProfileAnalyzer() *ProfileAnalyzer {
 	return &ProfileAnalyzer{
 		MaxGamesToAnalyze: 20,
 		MinGamesRequired:  5,
+		Cache:             NewDefaultCache(),
 	}
 }
 
 // AnalyzePlayer creates a comprehensive profile for a player
 func (pa *ProfileAnalyzer) AnalyzePlayer(puuid string) (*PlayerProfile, error) {
-	// Get recent match IDs
-	matchIDs, err := GetTFTMatchIDsByPUUID(puuid, 0, pa.MaxGamesToAnalyze, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get match IDs for %s: %w", puuid, err)
+	// Return cached profile if available
+	if pa.Cache != nil {
+		if cached, ok := pa.Cache.GetProfile(puuid); ok {
+			return cached, nil
+		}
+	}
+
+	// Try multiple regions to get match IDs (since we don't know player's region)
+	var matchIDs []string
+	var ok bool
+	if pa.Cache != nil {
+		if cachedIDs, hit := pa.Cache.GetMatchIDs(puuid); hit {
+			matchIDs = cachedIDs
+			ok = true
+		}
+	}
+	if !ok {
+		// Try regions in order until we find match history
+		regions := []string{"NA1", "EUW1", "KR", "BR1", "LAS", "LAN", "EUNE", "OC1", "JP1", "TR1", "RU", "PH2", "SG2", "TH2", "TW2", "VN2"}
+		for _, region := range regions {
+			ids, err := GetTFTMatchIDsByPUUIDWithRegion(puuid, region, 0, pa.MaxGamesToAnalyze, nil, nil)
+			if err == nil && len(ids) > 0 {
+				matchIDs = ids
+				break
+			}
+		}
+		if len(matchIDs) == 0 {
+			return nil, fmt.Errorf("no match history found for %s in any region", puuid)
+		}
+		if pa.Cache != nil {
+			pa.Cache.SetMatchIDs(puuid, matchIDs)
+		}
 	}
 
 	if len(matchIDs) < pa.MinGamesRequired {
 		return nil, fmt.Errorf("insufficient games for analysis: %d (minimum %d)", len(matchIDs), pa.MinGamesRequired)
 	}
 
-	// Get detailed match data
+	// Get detailed match data (use cache when possible)
 	var matches []*MatchDto
 	for _, matchID := range matchIDs {
-		match, err := GetTFTMatchByID(matchID)
-		if err != nil {
-			continue // skip failed matches
+		var match *MatchDto
+		if pa.Cache != nil {
+			if m, hit := pa.Cache.GetMatch(matchID); hit {
+				match = m
+			}
+		}
+		if match == nil {
+			m, err := GetTFTMatchByID(matchID)
+			if err != nil {
+				continue // skip failed matches
+			}
+			match = m
+			if pa.Cache != nil {
+				pa.Cache.SetMatch(matchID, match)
+			}
 		}
 		matches = append(matches, match)
 	}
@@ -151,28 +193,129 @@ func (pa *ProfileAnalyzer) AnalyzePlayer(puuid string) (*PlayerProfile, error) {
 	profile.ItemPreference = pa.analyzeItemPreference(playerData)
 	profile.Performance = pa.analyzePerformance(playerData)
 
+	// Cache the computed profile
+	if pa.Cache != nil {
+		pa.Cache.SetProfile(puuid, profile)
+	}
+
 	return profile, nil
 }
 
 // AnalyzeLobby creates profiles for all players in an active game
-func (pa *ProfileAnalyzer) AnalyzeLobby(gameInfo *CurrentGameInfo) ([]*PlayerProfile, error) {
-	var profiles []*PlayerProfile
+type LobbyProfile struct {
+	GameID          int64            `json:"gameId"`
+	Profiles        []*PlayerProfile `json:"profiles"`
+	ContestedTraits []TraitFrequency `json:"contestedTraits"`
+	AvgPlacement    float64          `json:"avgPlacement"`
+	TopFourRate     float64          `json:"topFourRate"`
+}
 
-	for _, participant := range gameInfo.Participants {
-		profile, err := pa.AnalyzePlayer(participant.PUUID)
-		if err != nil {
-			// Create basic profile with just PUUID if analysis fails
-			profile = &PlayerProfile{
-				PUUID:         participant.PUUID,
-				ProfileIconID: participant.ProfileIconID,
-				AnalyzedGames: 0,
-				LastUpdated:   time.Now(),
-			}
-		}
-		profiles = append(profiles, profile)
+// AnalyzeLobbyAggregated profiles all players in the active game in parallel
+// and returns aggregated lobby insights alongside individual profiles.
+func (pa *ProfileAnalyzer) AnalyzeLobbyAggregated(gameInfo *CurrentGameInfo) (*LobbyProfile, error) {
+	n := len(gameInfo.Participants)
+	if n == 0 {
+		return &LobbyProfile{
+			GameID:   gameInfo.GameID,
+			Profiles: []*PlayerProfile{},
+		}, nil
 	}
 
-	return profiles, nil
+	// Limit concurrency to avoid rate limits; choose the smaller of n and 4
+	maxConcurrent := 4
+	if n < maxConcurrent {
+		maxConcurrent = n
+	}
+	sem := make(chan struct{}, maxConcurrent)
+	results := make(chan *PlayerProfile, n)
+
+	// Launch analysis goroutines
+	for _, participant := range gameInfo.Participants {
+		puuid := participant.PUUID
+		icon := participant.ProfileIconID
+
+		sem <- struct{}{}
+		go func(puuid string, icon int64) {
+			defer func() { <-sem }()
+			profile, err := pa.AnalyzePlayer(puuid)
+			if err != nil {
+				// Fallback to minimal profile on error
+				profile = &PlayerProfile{
+					PUUID:         puuid,
+					ProfileIconID: icon,
+					AnalyzedGames: 0,
+					LastUpdated:   time.Now(),
+				}
+			}
+			results <- profile
+		}(puuid, icon)
+	}
+
+	// Collect results
+	profiles := make([]*PlayerProfile, 0, n)
+	for i := 0; i < n; i++ {
+		profiles = append(profiles, <-results)
+	}
+
+	// Aggregate lobby-level insights
+	var sumAvgPlacement float64
+	var sumTopFourRate float64
+	playerCount := 0
+
+	traitCounts := make(map[string]int)
+
+	for _, p := range profiles {
+		if p.AnalyzedGames > 0 {
+			sumAvgPlacement += p.PlayStyle.AveragePlacement
+			sumTopFourRate += p.PlayStyle.TopFourRate
+			playerCount++
+		}
+
+		// Consider top N favorite traits for contest detection
+		topN := 3
+		if len(p.CompPreference.FavoriteTraits) < topN {
+			topN = len(p.CompPreference.FavoriteTraits)
+		}
+		for i := 0; i < topN; i++ {
+			traitCounts[p.CompPreference.FavoriteTraits[i].Name]++
+		}
+	}
+
+	avgPlacement := 0.0
+	topFourRate := 0.0
+	if playerCount > 0 {
+		avgPlacement = sumAvgPlacement / float64(playerCount)
+		topFourRate = sumTopFourRate / float64(playerCount)
+	}
+
+	contested := make([]TraitFrequency, 0, len(traitCounts))
+	for name, count := range traitCounts {
+		contested = append(contested, TraitFrequency{
+			Name:      name,
+			Frequency: float64(count) / float64(n), // fraction of lobby preferring this
+		})
+	}
+	sort.Slice(contested, func(i, j int) bool {
+		return contested[i].Frequency > contested[j].Frequency
+	})
+
+	return &LobbyProfile{
+		GameID:          gameInfo.GameID,
+		Profiles:        profiles,
+		ContestedTraits: contested,
+		AvgPlacement:    avgPlacement,
+		TopFourRate:     topFourRate,
+	}, nil
+}
+
+// AnalyzeLobby preserves the original signature but now performs parallel analysis
+// and returns just the slice of player profiles.
+func (pa *ProfileAnalyzer) AnalyzeLobby(gameInfo *CurrentGameInfo) ([]*PlayerProfile, error) {
+	lobby, err := pa.AnalyzeLobbyAggregated(gameInfo)
+	if err != nil {
+		return nil, err
+	}
+	return lobby.Profiles, nil
 }
 
 // Analysis helper methods (placeholder implementations)

@@ -20,38 +20,25 @@ func (b *DiscordBot) handlePlaystyleCommand(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
-	options := i.ApplicationCommandData().Options
+	// Parse player parameters
+	params := ParsePlayerParams(i.ApplicationCommandData().Options)
 
-	// Parse command options
-	gameName := options[0].StringValue()
-	tagLine := DEFAULT_REGION
-	if len(options) > 1 && options[1].StringValue() != "" {
-		tagLine = options[1].StringValue()
-	}
-
-	// Get account information
-	account, err := riot.GetAccountByRiotId(gameName, tagLine)
+	// Look up player account and summoner info
+	playerResult, err := b.LookupPlayer(s, i, params)
 	if err != nil {
-		b.sendError(s, i, "Player Not Found", fmt.Sprintf("Could not find player `%s#%s`", gameName, tagLine))
-		return
-	}
-
-	summoner, err := riot.GetSummonerByPUUID(account.PUUID)
-	if err != nil {
-		b.sendError(s, i, "API Error", "Error fetching summoner data")
-		return
+		return // Error already sent to Discord
 	}
 
 	// Analyze the player's playstyle using our profiling system
 	analyzer := riot.NewProfileAnalyzer()
-	profile, err := analyzer.AnalyzePlayer(account.PUUID)
+	profile, err := analyzer.AnalyzePlayer(playerResult.Account.PUUID)
 	if err != nil {
 		b.sendError(s, i, "Analysis Error", fmt.Sprintf("Could not analyze playstyle: %v", err))
 		return
 	}
 
 	// Format and send the response
-	embed := b.formatPlaystyleAnalysis(account, summoner, profile)
+	embed := b.formatPlaystyleAnalysis(playerResult, profile)
 	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}); err != nil {
@@ -60,7 +47,7 @@ func (b *DiscordBot) handlePlaystyleCommand(s *discordgo.Session, i *discordgo.I
 }
 
 // formatPlaystyleAnalysis formats the player profile into a Discord embed
-func (b *DiscordBot) formatPlaystyleAnalysis(account *riot.Account, summoner *riot.Summoner, profile *riot.PlayerProfile) *discordgo.MessageEmbed {
+func (b *DiscordBot) formatPlaystyleAnalysis(playerResult *PlayerLookupResult, profile *riot.PlayerProfile) *discordgo.MessageEmbed {
 	// Get color based on performance
 	embedColor := b.getColorByPerformance(profile.PlayStyle.AveragePlacement)
 
@@ -91,11 +78,11 @@ func (b *DiscordBot) formatPlaystyleAnalysis(account *riot.Account, summoner *ri
 
 	// Create main embed
 	embed := &discordgo.MessageEmbed{
-		Title: fmt.Sprintf("🎯 %s's TFT Playstyle", account.GameName),
+		Title: fmt.Sprintf("🎯 %s's TFT Playstyle", playerResult.Account.GameName),
 		Color: embedColor,
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
-			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
+			Name:    playerResult.GetDisplayName(),
+			IconURL: playerResult.GetProfileIconURL(),
 		},
 		Description: fmt.Sprintf("Analysis based on **%d recent games**", profile.AnalyzedGames),
 		Fields: []*discordgo.MessageEmbedField{
@@ -126,7 +113,7 @@ func (b *DiscordBot) formatPlaystyleAnalysis(account *riot.Account, summoner *ri
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("Level %d • Analyzed %s", summoner.SummonerLevel, profile.LastUpdated.Format("Jan 2")),
+			Text: fmt.Sprintf("Level %d • Analyzed %s", playerResult.GetSummonerLevel(), profile.LastUpdated.Format("Jan 2")),
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

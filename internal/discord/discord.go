@@ -33,7 +33,13 @@ var commands = []*discordgo.ApplicationCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "tagline",
-				Description: "Player's tagline (default: NA1)",
+				Description: "Player's tagline (e.g., 'NA1', 'koala')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "region",
+				Description: "Server region (NA1, BR1, EUW1, KR, etc. - leave blank to auto-detect)",
 				Required:    false,
 			},
 			{
@@ -57,7 +63,13 @@ var commands = []*discordgo.ApplicationCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "tagline",
-				Description: "Player's tagline (default: NA1)",
+				Description: "Player's tagline (e.g., 'NA1', 'koala')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "region",
+				Description: "Server region (NA1, BR1, EUW1, KR, etc. - leave blank to auto-detect)",
 				Required:    false,
 			},
 		},
@@ -75,7 +87,37 @@ var commands = []*discordgo.ApplicationCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "tagline",
-				Description: "Player's tagline (default: NA1)",
+				Description: "Player's tagline (e.g., 'NA1', 'koala')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "region",
+				Description: "Server region (NA1, BR1, EUW1, KR, etc. - leave blank to auto-detect)",
+				Required:    false,
+			},
+		},
+	},
+	{
+		Name:        "lobby",
+		Description: "Analyze your current TFT lobby",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "gamename",
+				Description: "Your Riot ID (e.g., 'mubs')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "tagline",
+				Description: "Your tagline (e.g., 'NA1', 'koala')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "region",
+				Description: "Server region (NA1, BR1, EUW1, KR, etc. - leave blank to auto-detect)",
 				Required:    false,
 			},
 		},
@@ -103,6 +145,7 @@ func NewDiscordBot(config *Config) (*DiscordBot, error) {
 	bot.CommandHandlers["chat"] = bot.handleChatCommand
 	bot.CommandHandlers["tftrecent"] = bot.handleTFTRecentCommand
 	bot.CommandHandlers["lastgame"] = bot.handleLastGameCommand
+	bot.CommandHandlers["lobby"] = bot.handleLobbyCommand
 	bot.CommandHandlers["playstyle"] = bot.handlePlaystyleCommand
 
 	return bot, nil

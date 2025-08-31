@@ -54,7 +54,14 @@ func TestFormatPlaystyleAnalysis(t *testing.T) {
 		},
 	}
 
-	embed := bot.formatPlaystyleAnalysis(account, summoner, profile)
+	// Create PlayerLookupResult for the refactored function
+	playerResult := &PlayerLookupResult{
+		Account:  account,
+		Summoner: summoner,
+		Params:   PlayerParams{GameName: "TestPlayer", TagLine: "NA1"},
+	}
+
+	embed := bot.formatPlaystyleAnalysis(playerResult, profile)
 
 	// Test embed structure
 	if embed.Title != "🎯 TestPlayer's TFT Playstyle" {

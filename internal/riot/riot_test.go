@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetAPIKey(t *testing.T) {
-	apiKey := getAPIKey()
+	apiKey := GetAPIKey()
 	if apiKey == "" {
 		t.Fatal("API key should not be empty when RIOT_API_KEY is set")
 	}

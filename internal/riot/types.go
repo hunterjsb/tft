@@ -3,8 +3,95 @@ package riot
 // API Base URLs
 const (
 	RIOT_AMERICAS_URL = "https://americas.api.riotgames.com"
-	RIOT_NA1_URL      = "https://na1.api.riotgames.com"
+	RIOT_ASIA_URL     = "https://asia.api.riotgames.com"
+	RIOT_EUROPE_URL   = "https://europe.api.riotgames.com"
+	RIOT_SEA_URL      = "https://sea.api.riotgames.com"
 )
+
+// Regional Platform URLs (for spectator API)
+const (
+	RIOT_NA1_URL  = "https://na1.api.riotgames.com"
+	RIOT_EUW1_URL = "https://euw1.api.riotgames.com"
+	RIOT_EUNE_URL = "https://eun1.api.riotgames.com"
+	RIOT_KR_URL   = "https://kr.api.riotgames.com"
+	RIOT_JP1_URL  = "https://jp1.api.riotgames.com"
+	RIOT_BR1_URL  = "https://br1.api.riotgames.com"
+	RIOT_LAN_URL  = "https://la1.api.riotgames.com"
+	RIOT_LAS_URL  = "https://la2.api.riotgames.com"
+	RIOT_OC1_URL  = "https://oc1.api.riotgames.com"
+	RIOT_TR1_URL  = "https://tr1.api.riotgames.com"
+	RIOT_RU_URL   = "https://ru.api.riotgames.com"
+	RIOT_PH2_URL  = "https://ph2.api.riotgames.com"
+	RIOT_SG2_URL  = "https://sg2.api.riotgames.com"
+	RIOT_TH2_URL  = "https://th2.api.riotgames.com"
+	RIOT_TW2_URL  = "https://tw2.api.riotgames.com"
+	RIOT_VN2_URL  = "https://vn2.api.riotgames.com"
+)
+
+// RegionMapping maps region codes to their platform URLs (for spectator API)
+var RegionMapping = map[string]string{
+	"NA1":  RIOT_NA1_URL,
+	"EUW1": RIOT_EUW1_URL,
+	"EUNE": RIOT_EUNE_URL,
+	"EUN1": RIOT_EUNE_URL,
+	"KR":   RIOT_KR_URL,
+	"JP1":  RIOT_JP1_URL,
+	"BR1":  RIOT_BR1_URL,
+	"LAN":  RIOT_LAN_URL,
+	"LAS":  RIOT_LAS_URL,
+	"OC1":  RIOT_OC1_URL,
+	"TR1":  RIOT_TR1_URL,
+	"RU":   RIOT_RU_URL,
+	"PH2":  RIOT_PH2_URL,
+	"SG2":  RIOT_SG2_URL,
+	"TH2":  RIOT_TH2_URL,
+	"TW2":  RIOT_TW2_URL,
+	"VN2":  RIOT_VN2_URL,
+}
+
+// RegionalRouting maps region codes to their regional routing URLs (for match history API)
+var RegionalRouting = map[string]string{
+	// AMERICAS regions
+	"NA1": RIOT_AMERICAS_URL,
+	"BR1": RIOT_AMERICAS_URL,
+	"LAN": RIOT_AMERICAS_URL,
+	"LAS": RIOT_AMERICAS_URL,
+
+	// ASIA regions
+	"KR":  RIOT_ASIA_URL,
+	"JP1": RIOT_ASIA_URL,
+	"PH2": RIOT_ASIA_URL,
+	"SG2": RIOT_ASIA_URL,
+	"TH2": RIOT_ASIA_URL,
+	"TW2": RIOT_ASIA_URL,
+	"VN2": RIOT_ASIA_URL,
+
+	// EUROPE regions
+	"EUW1": RIOT_EUROPE_URL,
+	"EUNE": RIOT_EUROPE_URL,
+	"EUN1": RIOT_EUROPE_URL,
+	"TR1":  RIOT_EUROPE_URL,
+	"RU":   RIOT_EUROPE_URL,
+
+	// OCE - also uses AMERICAS routing
+	"OC1": RIOT_AMERICAS_URL,
+}
+
+// GetRegionalURL returns the platform URL for a given region (for spectator API)
+func GetRegionalURL(region string) string {
+	if url, ok := RegionMapping[region]; ok {
+		return url
+	}
+	return RIOT_NA1_URL // default fallback
+}
+
+// GetRegionalRoutingURL returns the regional routing URL for a given region (for match history API)
+func GetRegionalRoutingURL(region string) string {
+	if url, ok := RegionalRouting[region]; ok {
+		return url
+	}
+	return RIOT_AMERICAS_URL // default fallback to AMERICAS
+}
 
 // Account and Summoner Types
 

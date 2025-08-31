@@ -20,18 +20,19 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
-	options := i.ApplicationCommandData().Options
+	// Parse player parameters
+	params := ParsePlayerParams(i.ApplicationCommandData().Options)
 
-	// Parse command options
-	gameName := options[0].StringValue()
-	tagLine := DEFAULT_REGION
-	if len(options) > 1 && options[1].StringValue() != "" {
-		tagLine = options[1].StringValue()
+	// Look up player account and summoner info
+	playerResult, err := b.LookupPlayer(s, i, params)
+	if err != nil {
+		return // Error already sent to Discord
 	}
 
+	// Parse count parameter
 	count := 5 // default
-	for i, option := range options {
-		if option.Name == "count" && i >= 1 {
+	for _, option := range i.ApplicationCommandData().Options {
+		if option.Name == "count" {
 			count = int(option.IntValue())
 			if count < 1 || count > 10 {
 				count = 5
@@ -40,33 +41,20 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 		}
 	}
 
-	// Get account and summoner information
-	account, err := riot.GetAccountByRiotId(gameName, tagLine)
-	if err != nil {
-		b.sendError(s, i, "Player Not Found", fmt.Sprintf("Could not find player `%s#%s`", gameName, tagLine))
-		return
-	}
-
-	summoner, err := riot.GetSummonerByPUUID(account.PUUID)
-	if err != nil {
-		b.sendError(s, i, "API Error", "Error fetching summoner data")
-		return
-	}
-
 	// Get recent TFT match IDs
-	matchIDs, err := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, count, nil, nil)
+	matchIDs, err := riot.GetTFTMatchIDsByPUUID(playerResult.Account.PUUID, 0, count, nil, nil)
 	if err != nil {
 		b.sendError(s, i, "API Error", "Error fetching match history from Riot API")
 		return
 	}
 
 	if len(matchIDs) == 0 {
-		b.sendError(s, i, "No Games Found", fmt.Sprintf("No TFT games found for `%s#%s`", gameName, tagLine))
+		b.sendError(s, i, "No Games Found", fmt.Sprintf("No TFT games found for `%s`", playerResult.GetDisplayName()))
 		return
 	}
 
 	// Format and send the response
-	embed := b.formatTFTMatches(account, summoner, matchIDs)
+	embed := b.formatTFTMatches(playerResult, matchIDs)
 	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}); err != nil {
@@ -75,7 +63,7 @@ func (b *DiscordBot) handleTFTRecentCommand(s *discordgo.Session, i *discordgo.I
 }
 
 // formatTFTMatches formats TFT match data into a single embed
-func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summoner, matchIDs []string) *discordgo.MessageEmbed {
+func (b *DiscordBot) formatTFTMatches(playerResult *PlayerLookupResult, matchIDs []string) *discordgo.MessageEmbed {
 	var gamesSummary []string
 	var gameData []GameData
 	avgPlacement := 0.0
@@ -96,7 +84,7 @@ func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summ
 		// Find the player's data in the match
 		var player *riot.ParticipantDto
 		for _, participant := range match.Info.Participants {
-			if participant.PUUID == account.PUUID {
+			if participant.PUUID == playerResult.Account.PUUID {
 				player = &participant
 				break
 			}
@@ -142,13 +130,13 @@ func (b *DiscordBot) formatTFTMatches(account *riot.Account, summoner *riot.Summ
 		Title: "Recent TFT Games",
 		Color: b.getColorByPerformance(avgPlacement),
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
-			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
+			Name:    playerResult.GetDisplayName(),
+			IconURL: playerResult.GetProfileIconURL(),
 		},
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Performance",
-				Value:  fmt.Sprintf("Avg: #%.1f\nTop4: %.0f%%\nLevel: %d", avgPlacement, top4Rate, summoner.SummonerLevel),
+				Value:  fmt.Sprintf("Avg: #%.1f\nTop4: %.0f%%\nLevel: %d", avgPlacement, top4Rate, playerResult.GetSummonerLevel()),
 				Inline: true,
 			},
 			{
@@ -309,42 +297,29 @@ func (b *DiscordBot) handleLastGameCommand(s *discordgo.Session, i *discordgo.In
 		return
 	}
 
-	options := i.ApplicationCommandData().Options
+	// Parse player parameters
+	params := ParsePlayerParams(i.ApplicationCommandData().Options)
 
-	// Parse command options
-	gameName := options[0].StringValue()
-	tagLine := DEFAULT_REGION
-	if len(options) > 1 && options[1].StringValue() != "" {
-		tagLine = options[1].StringValue()
-	}
-
-	// Get account and summoner information
-	account, err := riot.GetAccountByRiotId(gameName, tagLine)
+	// Look up player account and summoner info
+	playerResult, err := b.LookupPlayer(s, i, params)
 	if err != nil {
-		b.sendError(s, i, "Player Not Found", fmt.Sprintf("Could not find player `%s#%s`", gameName, tagLine))
-		return
-	}
-
-	summoner, err := riot.GetSummonerByPUUID(account.PUUID)
-	if err != nil {
-		b.sendError(s, i, "API Error", "Error fetching summoner data")
-		return
+		return // Error already sent to Discord
 	}
 
 	// Get most recent TFT match
-	matchIDs, err := riot.GetTFTMatchIDsByPUUID(account.PUUID, 0, 1, nil, nil)
+	matchIDs, err := riot.GetTFTMatchIDsByPUUID(playerResult.Account.PUUID, 0, 1, nil, nil)
 	if err != nil {
 		b.sendError(s, i, "API Error", "Error fetching match history from Riot API")
 		return
 	}
 
 	if len(matchIDs) == 0 {
-		b.sendError(s, i, "No Games Found", fmt.Sprintf("No TFT games found for `%s#%s`", gameName, tagLine))
+		b.sendError(s, i, "No Games Found", fmt.Sprintf("No TFT games found for `%s`", playerResult.GetDisplayName()))
 		return
 	}
 
 	// Format and send the detailed response
-	embed := b.formatLastGame(account, summoner, matchIDs[0])
+	embed := b.formatLastGame(playerResult, matchIDs[0])
 	if _, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}); err != nil {
@@ -353,7 +328,7 @@ func (b *DiscordBot) handleLastGameCommand(s *discordgo.Session, i *discordgo.In
 }
 
 // formatLastGame formats detailed info for a single TFT match
-func (b *DiscordBot) formatLastGame(account *riot.Account, summoner *riot.Summoner, matchID string) *discordgo.MessageEmbed {
+func (b *DiscordBot) formatLastGame(playerResult *PlayerLookupResult, matchID string) *discordgo.MessageEmbed {
 	// Get detailed match data
 	match, err := riot.GetTFTMatchByID(matchID)
 	if err != nil {
@@ -367,7 +342,7 @@ func (b *DiscordBot) formatLastGame(account *riot.Account, summoner *riot.Summon
 	// Find the player's data in the match
 	var player *riot.ParticipantDto
 	for _, participant := range match.Info.Participants {
-		if participant.PUUID == account.PUUID {
+		if participant.PUUID == playerResult.Account.PUUID {
 			player = &participant
 			break
 		}
@@ -404,8 +379,8 @@ func (b *DiscordBot) formatLastGame(account *riot.Account, summoner *riot.Summon
 		Title: fmt.Sprintf("%s #%d • L%d • %dm %ds", placementEmoji, player.Placement, player.Level, minutes, seconds),
 		Color: embedColor,
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    fmt.Sprintf("%s#%s", account.GameName, account.TagLine),
-			IconURL: fmt.Sprintf("https://ddragon.leagueoflegends.com/cdn/15.17.1/img/profileicon/%d.png", summoner.ProfileIconID),
+			Name:    playerResult.GetDisplayName(),
+			IconURL: playerResult.GetProfileIconURL(),
 		},
 		Description: analysis,
 		Thumbnail: &discordgo.MessageEmbedThumbnail{

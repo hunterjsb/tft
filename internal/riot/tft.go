@@ -1,11 +1,17 @@
 package riot
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // GetTFTMatchByID gets a TFT match by match ID
 func GetTFTMatchByID(matchID string) (*MatchDto, error) {
 	endpoint := fmt.Sprintf("/tft/match/v1/matches/%s", matchID)
-	url := buildAmericasURL(endpoint)
+
+	// Extract region from match ID to determine routing
+	region := extractRegionFromMatchID(matchID)
+	url := buildRegionalRoutingURL(region, endpoint)
 
 	var match MatchDto
 	if err := makeAPIRequest(url, &match); err != nil {
@@ -19,7 +25,13 @@ func GetTFTMatchByID(matchID string) (*MatchDto, error) {
 // start: defaults to 0, start index
 // count: defaults to 20, number of match IDs to return
 // startTime/endTime: optional epoch timestamps in seconds
+// region: platform region to determine routing (e.g., "KR", "NA1", "EUW1")
 func GetTFTMatchIDsByPUUID(puuid string, start, count int, startTime, endTime *int64) ([]string, error) {
+	return GetTFTMatchIDsByPUUIDWithRegion(puuid, "NA1", start, count, startTime, endTime)
+}
+
+// GetTFTMatchIDsByPUUIDWithRegion gets match IDs with explicit region for routing
+func GetTFTMatchIDsByPUUIDWithRegion(puuid, region string, start, count int, startTime, endTime *int64) ([]string, error) {
 	endpoint := fmt.Sprintf("/tft/match/v1/matches/by-puuid/%s/ids", puuid)
 
 	// Build query parameters
@@ -42,7 +54,7 @@ func GetTFTMatchIDsByPUUID(puuid string, start, count int, startTime, endTime *i
 		query = query[1:]
 	}
 
-	url := buildAmericasURL(endpoint)
+	url := buildRegionalRoutingURL(region, endpoint)
 	if len(query) > 0 {
 		url += "&" + query
 	}
@@ -60,14 +72,53 @@ func GetTFTMatchIDsByPUUIDSimple(puuid string) ([]string, error) {
 	return GetTFTMatchIDsByPUUID(puuid, 0, 20, nil, nil)
 }
 
-// GetActiveTFTGameByPUUID returns current game information for the given PUUID on NA1.
+// GetActiveTFTGameByPUUID returns current game information for the given PUUID.
+// It tries multiple common regions if no region is specified.
 func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
+	// Try common regions in order of popularity
+	regions := []string{"NA1", "EUW1", "KR", "BR1", "LAS", "LAN", "EUNE", "OC1", "JP1", "TR1", "RU", "PH2", "SG2", "TH2", "TW2", "VN2"}
+
+	var lastErr error
+	for _, region := range regions {
+		info, err := GetActiveTFTGameByPUUIDWithRegion(puuid, region)
+		if err == nil {
+			return info, nil
+		}
+		lastErr = err
+		// Only continue on 404 (not in game), stop on other errors like 403 (forbidden)
+		if !strings.Contains(err.Error(), "status 404") {
+			break
+		}
+	}
+
+	return nil, lastErr
+}
+
+// GetActiveTFTGameByPUUIDWithRegion returns current game information for the given PUUID in a specific region.
+func GetActiveTFTGameByPUUIDWithRegion(puuid, region string) (*CurrentGameInfo, error) {
 	endpoint := fmt.Sprintf("/lol/spectator/tft/v5/active-games/by-puuid/%s", puuid)
-	url := buildNA1URL(endpoint)
+	url := buildRegionalURL(region, endpoint)
 
 	var info CurrentGameInfo
 	if err := makeAPIRequest(url, &info); err != nil {
 		return nil, err
 	}
 	return &info, nil
+}
+
+// GetActiveTFTGameByPUUIDWithRegionOrDefault returns current game information, defaulting to NA1 if no region specified.
+func GetActiveTFTGameByPUUIDWithRegionOrDefault(puuid, region string) (*CurrentGameInfo, error) {
+	if region == "" {
+		return GetActiveTFTGameByPUUID(puuid) // Multi-region fallback
+	}
+	return GetActiveTFTGameByPUUIDWithRegion(puuid, region)
+}
+
+// extractRegionFromMatchID extracts the region from a match ID (e.g., "NA1_1234567890" -> "NA1")
+func extractRegionFromMatchID(matchID string) string {
+	parts := strings.Split(matchID, "_")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return "NA1" // default fallback
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func getAPIKey() string {
+func GetAPIKey() string {
 	return os.Getenv("RIOT_API_KEY")
 }
 
@@ -19,7 +19,7 @@ func init() {
 
 // buildURL constructs a Riot API URL with the given base URL and endpoint
 func buildURL(baseURL, endpoint string) string {
-	return fmt.Sprintf("%s%s?api_key=%s", baseURL, endpoint, getAPIKey())
+	return fmt.Sprintf("%s%s?api_key=%s", baseURL, endpoint, GetAPIKey())
 }
 
 // buildAmericasURL constructs a URL for the Americas region
@@ -30,6 +30,18 @@ func buildAmericasURL(endpoint string) string {
 // buildNA1URL constructs a URL for the NA1 region
 func buildNA1URL(endpoint string) string {
 	return buildURL(RIOT_NA1_URL, endpoint)
+}
+
+// buildRegionalURL constructs a URL for any region based on region code (for spectator API)
+func buildRegionalURL(region, endpoint string) string {
+	baseURL := GetRegionalURL(region)
+	return buildURL(baseURL, endpoint)
+}
+
+// buildRegionalRoutingURL constructs a URL for regional routing (for match history API)
+func buildRegionalRoutingURL(region, endpoint string) string {
+	baseURL := GetRegionalRoutingURL(region)
+	return buildURL(baseURL, endpoint)
 }
 
 // makeAPIRequest is a generic function that handles HTTP boilerplate for Riot API requests
