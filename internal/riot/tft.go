@@ -79,16 +79,38 @@ func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
 	regions := []string{"NA1", "EUW1", "KR", "BR1", "LAS", "LAN", "EUNE", "OC1", "JP1", "TR1", "RU", "PH2", "SG2", "TH2", "TW2", "VN2"}
 
 	var lastErr error
+	var notFoundErr error
 	for _, region := range regions {
 		info, err := GetActiveTFTGameByPUUIDWithRegion(puuid, region)
 		if err == nil {
 			return info, nil
 		}
-		lastErr = err
-		// Only continue on 404 (not in game), stop on other errors like 403 (forbidden)
-		if !strings.Contains(err.Error(), "status 404") {
-			break
+
+		msg := err.Error()
+		// Treat 404 as "not in game" and keep trying other regions
+		if strings.Contains(msg, "status 404") {
+			notFoundErr = err
+			continue
 		}
+
+		// Ignore DNS/NXDOMAIN and other transient network errors and try next region
+		if strings.Contains(msg, "no such host") ||
+			strings.Contains(msg, "temporary failure in name resolution") ||
+			strings.Contains(msg, "server misbehaving") ||
+			strings.Contains(msg, "i/o timeout") ||
+			strings.Contains(msg, "context deadline exceeded") ||
+			strings.Contains(msg, "dial tcp") {
+			lastErr = err
+			continue
+		}
+
+		// For other errors (e.g., 401/403), stop iterating
+		lastErr = err
+		break
+	}
+
+	if notFoundErr != nil {
+		return nil, notFoundErr
 	}
 
 	return nil, lastErr
@@ -96,7 +118,7 @@ func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
 
 // GetActiveTFTGameByPUUIDWithRegion returns current game information for the given PUUID in a specific region.
 func GetActiveTFTGameByPUUIDWithRegion(puuid, region string) (*CurrentGameInfo, error) {
-	endpoint := fmt.Sprintf("/lol/spectator/tft/v5/active-games/by-puuid/%s", puuid)
+	endpoint := fmt.Sprintf("/tft/spectator/v5/active-games/by-puuid/%s", puuid)
 	url := buildRegionalURL(region, endpoint)
 
 	var info CurrentGameInfo
