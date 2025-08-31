@@ -62,6 +62,24 @@ var commands = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "playstyle",
+		Description: "Analyze a player's TFT playstyle and tendencies",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "gamename",
+				Description: "Player's Riot ID (e.g., 'mubs')",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "tagline",
+				Description: "Player's tagline (default: NA1)",
+				Required:    false,
+			},
+		},
+	},
 }
 
 // NewDiscordBot creates a new Discord bot with the provided configuration
@@ -85,6 +103,7 @@ func NewDiscordBot(config *Config) (*DiscordBot, error) {
 	bot.CommandHandlers["chat"] = bot.handleChatCommand
 	bot.CommandHandlers["tftrecent"] = bot.handleTFTRecentCommand
 	bot.CommandHandlers["lastgame"] = bot.handleLastGameCommand
+	bot.CommandHandlers["playstyle"] = bot.handlePlaystyleCommand
 
 	return bot, nil
 }
