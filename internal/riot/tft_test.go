@@ -178,7 +178,7 @@ func TestGetActiveTFTGameByPUUID(t *testing.T) {
 		t.Fatalf("Failed to get account for test: %v", err)
 	}
 
-	info, err := GetActiveTFTGameByPUUID(account.PUUID)
+	info, err := GetActiveTFTGameByPUUIDWithRegion(account.PUUID, "NA1")
 	if err != nil {
 		// 404 indicates the player is not currently in an active game; treat as non-fatal/skip
 		if strings.Contains(err.Error(), "status 404") {
@@ -211,7 +211,7 @@ func TestGetActiveTFTGameByPUUID_InvalidPUUID(t *testing.T) {
 		t.Skip("RIOT_API_KEY not set")
 	}
 
-	_, err := GetActiveTFTGameByPUUID("invalid-puuid")
+	_, err := GetActiveTFTGameByPUUIDWithRegion("invalid-puuid", "NA1")
 	if err == nil {
 		t.Error("Expected error for invalid PUUID")
 	}
