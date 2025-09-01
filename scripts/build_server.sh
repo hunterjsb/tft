@@ -8,6 +8,9 @@ if [ -d "/opt/tft" ]; then
     cd /opt/tft
 fi
 
+# Set Go PATH
+export PATH=$PATH:/usr/local/go/bin
+
 # Build the application
 go build -o tft-bot ./cmd/discordbot
 
