@@ -3,6 +3,9 @@
 # Health check for TFT Discord bot
 echo "Checking TFT service health..."
 
+# Wait a moment for bot to fully initialize
+sleep 3
+
 # Check if process is running
 if pgrep -f "tft-bot" > /dev/null; then
     echo "TFT service is running"
