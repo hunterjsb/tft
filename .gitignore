@@ -37,6 +37,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+*.pem
 
 # Build output
 /bin/

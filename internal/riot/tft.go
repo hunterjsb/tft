@@ -73,11 +73,30 @@ func GetTFTMatchIDsByPUUIDSimple(puuid string) ([]string, error) {
 }
 
 // GetActiveTFTGameByPUUID returns current game information for the given PUUID.
-// It tries multiple common regions if no region is specified.
+// It first probes match history to infer the player's platform, then queries spectator on that platform.
+// Falls back to the previous multi-region scan if platform detection fails.
 func GetActiveTFTGameByPUUID(puuid string) (*CurrentGameInfo, error) {
-	// Try common regions in order of popularity
-	regions := []string{"NA1", "EUW1", "KR", "BR1", "LAS", "LAN", "EUNE", "OC1", "JP1", "TR1", "RU", "PH2", "SG2", "TH2", "TW2", "VN2"}
+	// Probe across regional routing representatives to infer platform via match ID prefix.
+	// NA1 -> AMERICAS routing, EUW1 -> EUROPE routing, KR -> ASIA routing (covers SEA).
+	probes := []string{"NA1", "EUW1", "KR"}
+	for _, probe := range probes {
+		ids, err := GetTFTMatchIDsByPUUIDWithRegion(puuid, probe, 0, 1, nil, nil)
+		if err == nil {
+			platform := probe
+			if len(ids) > 0 {
+				platform = extractRegionFromMatchID(ids[0]) // e.g., "NA1_..." -> "NA1"
+			}
+			return GetActiveTFTGameByPUUIDWithRegion(puuid, platform)
+		}
+		// On auth errors, no point in continuing the probe loop.
+		msg := err.Error()
+		if strings.Contains(msg, "status 401") || strings.Contains(msg, "status 403") {
+			break
+		}
+	}
 
+	// Fallback: try common platforms in order of popularity
+	regions := []string{"NA1", "EUW1", "KR", "BR1", "LAS", "LAN", "EUNE", "OC1", "JP1", "TR1", "RU", "PH2", "SG2", "TH2", "TW2", "VN2"}
 	var lastErr error
 	for _, region := range regions {
 		info, err := GetActiveTFTGameByPUUIDWithRegion(puuid, region)
